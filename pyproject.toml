@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gshapa"
+version = "0.2.0"
+authors = [
+  { name="Sara Khademioureh", email="khademio@ualberta.ca" },
+  { name="Sergio Peignier", email="sergio.peignier@insa-lyon.fr" },
+]
+description = "Gene set and gene-level analysis for single-cell RNA-seq using tree/neural models and SHAP values"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+keywords = ["Gene Set Analysis", "SHAP values", "Random Forest", "Differential Expression"]
+dependencies = [
+    "scikit-learn",
+    "xgboost",
+    "pandas",
+    "numpy",
+    "tqdm",
+    "statsmodels",
+    "fasttreeshap",
+    "shap",
+    "torch",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/SKhademi/gshapa"
+Issues = "https://github.com/SKhademi/gshapa/issues"
