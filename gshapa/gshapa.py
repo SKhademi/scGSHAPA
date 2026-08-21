@@ -16,11 +16,12 @@ from gshapa.neural_network import NeuralNetworkTrainer
 import torch
 
 RANDOM_STATE = 0
-MODEL = RandomForestClassifier(random_state=RANDOM_STATE,
-                               max_features=1./2,
-                               ccp_alpha=0.01,n_estimators=1000,n_jobs=-1)
-
 TEST_SET_SIZE = 0.2
+
+
+def _default_model(random_state):
+    return RandomForestClassifier(random_state=random_state, max_features=1./2,
+                                  ccp_alpha=0.01, n_estimators=1000, n_jobs=-1)
 
 
 
@@ -33,7 +34,7 @@ class GSHAPA3:
         test_set_size (float): Relative size for test set
     """
     def __init__(self,
-                 model=MODEL,
+                 model=None,
                  test_set_size=TEST_SET_SIZE,
                  random_state = RANDOM_STATE
                 ):
@@ -41,11 +42,11 @@ class GSHAPA3:
         Constructor for GSHAPA object.
 
         Args:
-            model (sklearn.base.BaseEstimator): Scikit-learn ML model used to learn to predict an phenotype (e.g., disease) from gene expression
+            model (sklearn.base.BaseEstimator): Scikit-learn ML model used to learn to predict an phenotype (e.g., disease) from gene expression. Defaults to a fresh RandomForestClassifier per instance (never a shared default object).
             test_set_size (float): Relative size for test set
             random_state (int): Random seed
         """
-        self.model = model
+        self.model = model if model is not None else _default_model(random_state)
         self.test_set_size = test_set_size
         self.random_state = random_state
         self.pseudo_random_generator = np.random.default_rng(seed=random_state)
@@ -78,11 +79,11 @@ class GSHAPA3:
             y_train_enc = le.fit_transform(self.y_train)
             self.le = le
 
-            y_train_enc = le.fit_transform(self.y_train)
             y_train_enc = torch.from_numpy(y_train_enc).long()
             X_train = torch.from_numpy(self.X_train.values).float()
             self.model = self.model.fit(X_train, y_train_enc)
-            #needed for later in code
+            # sklearn-style .classes_ attribute, needed by callers (e.g. plot code) that
+            # expect it regardless of which backend is in use
             self.model.classes_ = le.classes_
 
     def shap(self,X_explain=None,y_explain=None,**fasttreeshap_TreeExplainer_params):
@@ -99,7 +100,7 @@ class GSHAPA3:
         """
         self.X_explain = X_explain
         self.y_explain = y_explain
-        check_addivity = False
+        check_additivity = False
         if isinstance(self.model, RandomForestClassifier):
             try:
                 self.explainer = fasttreeshap.TreeExplainer(self.model,
@@ -131,7 +132,6 @@ class GSHAPA3:
             X_train = torch.from_numpy(self.X_train.values[background_idx]).float()
             self.explainer = shap.DeepExplainer(model_for_shap, X_train, **fasttreeshap_TreeExplainer_params)
             X_explain = torch.from_numpy(self.X_explain.values).float()
-            check_addivity = False
 
         else:
             raise ValueError("Model type not supported. Please use RandomForestClassifier, XGBClassifier or NeuralNetworkTrainer.")
@@ -139,9 +139,9 @@ class GSHAPA3:
         if isinstance(self.model, NeuralNetworkTrainer):
             # Store raw output from DeepExplainer (may be a list of arrays, one per class,
             # or a 3D ndarray). Class extraction is handled in compute_target_global_gene_enrichment_score.
-            self.SHAP_values = self.explainer.shap_values(X_explain, check_additivity=check_addivity)
+            self.SHAP_values = self.explainer.shap_values(X_explain, check_additivity=check_additivity)
         else:
-            self.SHAP_values = self.explainer(X_explain, check_additivity=check_addivity)
+            self.SHAP_values = self.explainer(X_explain, check_additivity=check_additivity)
 
 
     def compute_target_global_gene_enrichment_score(self, target_class):
@@ -526,7 +526,6 @@ class GSHAPA3:
         isolation_forest_parameters["random_state"] = self.random_state
         isofo = IsolationForest(**isolation_forest_parameters)
         outliers = isofo.fit_predict(np.abs(self.gene_importance.values))
-        selected = (outliers == -1)
         self.gene_importance["Is Selected"] = (outliers == -1)
         return self.gene_importance
 
