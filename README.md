@@ -10,8 +10,12 @@ is assessed with a phenotype-label permutation test, at two levels:
 - **Gene level** (`explain_genes`) — a DEG/limma-style table (signed effect size, direction,
   FDR-corrected p-value) for every gene individually, without going through pathways at all.
 
-Both return the same result schema and share built-in plotting: a volcano plot for gene-level
-results, and dot/bar plots for gene-set-level results.
+Both return the same result schema and share built-in plotting: a volcano plot and expression
+heatmap for gene-level results, and dot/bar plots for gene-set-level results.
+
+**Gene-set analysis is entirely optional.** If you only want differential-expression-style
+gene-level analysis, `fit` → `shap` → `explain_genes` is the whole pipeline — no `gene_sets`
+dict required, and `explain_gene_sets` never needs to be called.
 
 ### Installation
 
@@ -31,11 +35,12 @@ g = GSHAPA3(RandomForestClassifier(n_estimators=1000, n_jobs=-1), test_set_size=
 g.fit(X, y)                                   # X: cells x genes, y: phenotype labels
 g.shap(g.X_test, y_explain=g.y_test)
 
-# Gene-level (DEG-style) analysis
+# Gene-level (DEG-style) analysis -- this is all you need if you don't want pathway analysis
 gene_results = g.explain_genes("Case", n_tests=1000)
 g.plot_genes(gene_results)                    # volcano plot
+g.plot_heatmap(gene_results)                  # top-genes expression heatmap
 
-# Gene-set / pathway-level analysis
+# Gene-set / pathway-level analysis (optional, only if you also want this)
 gene_set_results = g.explain_gene_sets(gene_sets, "Case", n_tests=1000)
 g.plot_gene_sets_dot(gene_set_results)         # dot plot of top pathways
 g.plot_gene_sets_bar(gene_set_results)         # bar plot of significant pathways
