@@ -94,3 +94,11 @@ def test_plot_gene_sets_smoke(fitted_gshapa):
 
     ax_bar = g.plot_gene_sets_bar(res, top_n=4, alpha=0.05)
     assert ax_bar is not None
+
+
+def test_plot_heatmap_smoke(fitted_gshapa):
+    g, _, _ = fitted_gshapa
+    res = g.explain_genes("Case", n_tests=200)
+    ax = g.plot_heatmap(res, top_n=10)
+    assert ax is not None
+    assert ax.get_images()[0].get_array().shape[0] == 10

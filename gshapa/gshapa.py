@@ -734,3 +734,105 @@ class GSHAPA3:
         ]
         ax.legend(handles=legend_elems, frameon=False, loc="lower right", fontsize=8, labelcolor=self._PLOT_INK)
         return ax
+
+    def plot_heatmap(self, res=None, top_n=30, X=None, y=None, ax=None):
+        """
+        Heatmap of the top_n genes from explain_genes() (ranked by |signed score|): rows are
+        genes, columns are explained cells grouped by phenotype, values are each gene's
+        expression z-scored across the explained cells (not SHAP values) - the standard
+        "top DE genes" heatmap that typically accompanies a differential expression analysis.
+
+        Args:
+            res (pd.DataFrame): output of explain_genes(). Defaults to the result of the
+                most recent explain_genes(...) call on this instance.
+            top_n (int): number of top genes (by |signed score|) to show.
+            X (pd.DataFrame): cells x genes expression matrix to read values from. Defaults
+                to self.X_explain (set by shap(...)).
+            y (array-like): phenotype label per cell, aligned with X's rows. Defaults to
+                self.y_explain (set by shap(...)).
+            ax (matplotlib.axes.Axes): axes to draw the heatmap body on; a new figure (with
+                a phenotype annotation strip above it) is created if None.
+
+        Returns:
+            matplotlib.axes.Axes: the heatmap body axes.
+        """
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LinearSegmentedColormap
+        from matplotlib.lines import Line2D
+
+        if res is None:
+            res = getattr(self, "gene_results_", None)
+            if res is None:
+                raise ValueError("No results to plot. Call explain_genes(...) first, or pass res=.")
+        if X is None:
+            X = getattr(self, "X_explain", None)
+            if X is None:
+                raise ValueError("No expression data available. Call shap(...) first, or pass X=.")
+        if y is None:
+            y = getattr(self, "y_explain", None)
+            if y is None:
+                raise ValueError("No phenotype labels available. Call shap(...) first, or pass y=.")
+
+        top_genes = [g for g in res.head(top_n).index if g in X.columns]
+        y = np.asarray(y)
+        order = np.argsort(y, kind="stable")  # groups cells by phenotype label
+        groups = y[order]
+        Z = X[top_genes].values[order].T.astype(float)  # genes x cells, phenotype-ordered
+
+        # z-score each gene (row) across the explained cells, for visual contrast
+        mu = Z.mean(axis=1, keepdims=True)
+        sigma = Z.std(axis=1, keepdims=True)
+        sigma[sigma == 0] = 1.0
+        Z = (Z - mu) / sigma
+
+        # Diverging blue-low/red-high colormap built from the same hues used elsewhere in
+        # this class, for a consistent palette across all four plot types - though here
+        # color encodes "expression relative to this gene's own mean", not direction of
+        # significance, so it is labeled separately via the colorbar rather than reusing
+        # the toward/away legend.
+        cmap = LinearSegmentedColormap.from_list(
+            "gshapa_diverging", [self._PLOT_TOWARD_COLOR, "#f0efec", self._PLOT_AWAY_COLOR]
+        )
+        vmax = float(np.nanpercentile(np.abs(Z), 98)) or 1.0
+
+        if ax is None:
+            fig, (ax_strip, ax) = plt.subplots(
+                2, 1, figsize=(8, 0.28 * len(top_genes) + 1.5),
+                gridspec_kw={"height_ratios": [1, max(3, 0.28 * len(top_genes)) / 0.4]},
+                sharex=True,
+            )
+        else:
+            ax_strip = None
+
+        im = ax.imshow(Z, aspect="auto", cmap=cmap, vmin=-vmax, vmax=vmax, interpolation="none")
+        ax.set_yticks(range(len(top_genes)))
+        ax.set_yticklabels(top_genes, fontsize=7, color=self._PLOT_INK)
+        ax.set_xticks([])
+        ax.set_xlabel(f"{Z.shape[1]} cells (grouped by phenotype)", color=self._PLOT_INK)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+        cbar = ax.figure.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
+        cbar.set_label("expression (z-score within gene)", color=self._PLOT_INK, fontsize=8)
+        cbar.ax.tick_params(labelsize=7, colors=self._PLOT_MUTED)
+
+        if ax_strip is not None:
+            unique_groups = list(dict.fromkeys(groups))  # stable order of first appearance
+            strip_colors = ["#eb6834", self._PLOT_MUTED]  # categorical slot 2 (orange) vs muted grey
+            group_to_color = {g: strip_colors[i % len(strip_colors)] for i, g in enumerate(unique_groups)}
+            strip = np.array([[list(int(group_to_color[g].lstrip("#")[j:j+2], 16) for j in (0, 2, 4))
+                                for g in groups]]) / 255.0
+            ax_strip.imshow(strip, aspect="auto", interpolation="none")
+            ax_strip.set_xticks([])
+            ax_strip.set_yticks([])
+            for spine in ax_strip.spines.values():
+                spine.set_visible(False)
+            legend_elems = [
+                Line2D([0], [0], marker="s", linestyle="", color=group_to_color[g], label=str(g))
+                for g in unique_groups
+            ]
+            ax_strip.legend(handles=legend_elems, frameon=False, loc="upper center",
+                            bbox_to_anchor=(0.5, 2.2), ncol=len(unique_groups), fontsize=8,
+                            labelcolor=self._PLOT_INK)
+
+        return ax
