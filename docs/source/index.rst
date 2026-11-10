@@ -1,15 +1,15 @@
-.. gshapa documentation master file.
+.. scGSHAPA documentation master file.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to gshapa's documentation!
-==================================
+Welcome to scGSHAPA's documentation!
+====================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   gshapa
+   scGSHAPA
 
 
 

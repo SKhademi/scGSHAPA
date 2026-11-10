@@ -12,12 +12,12 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../gshapa/'))
+sys.path.insert(0, os.path.abspath('../../scGSHAPA/'))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'gshapa'
+project = 'scGSHAPA'
 copyright = '2026, Sara Khademioureh, Sergio Peignier'
 author = 'Sara Khademioureh, Sergio Peignier'
 
@@ -64,9 +64,9 @@ html_theme = 'alabaster'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-# gshapa.py imports xgboost/shap and gshapa.neural_network imports torch at module level -
+# scGSHAPA imports xgboost/shap/torch at module level -
 # both are new additions to the docs build vs. the original mock list (which only covered
-# gshapa.py's older, torch/xgboost/shap-free import set), needed so autodoc can import the
+# the original gshapa.py's older, torch/xgboost/shap-free import set), needed so autodoc can import the
 # modules without installing the full heavy ML dependency stack just to extract docstrings.
 autodoc_mock_imports = [
     "sklearn", "numpy", "statsmodels", "fasttreeshap", "joblib", "tqdm", "pandas",

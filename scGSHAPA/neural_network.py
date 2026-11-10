@@ -92,7 +92,7 @@ class NeuralNetworkTrainer:
             verbose: Whether to print training progress
             random_state: seeds torch (weight init + DataLoader shuffling order) in fit(), for
                 reproducible training. FIX: previously nothing seeded torch's RNG here, so two
-                "identical" fit() calls (same data, same GSHAPA3 random_state - which only seeds
+                "identical" fit() calls (same data, same scGSHAPA3 random_state - which only seeds
                 the sklearn train_test_split, never reaches this class) produced different
                 trained weights and therefore different SHAP outputs every run. Verified: two
                 back-to-back fits on the same data gave visibly different gene-set-level

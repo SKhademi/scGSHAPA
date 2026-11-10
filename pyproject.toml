@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "gshapa"
+name = "scGSHAPA"
 version = "0.2.0"
 authors = [
   { name="Sara Khademioureh", email="khademio@ualberta.ca" },
   { name="Sergio Peignier", email="sergio.peignier@insa-lyon.fr" },
 ]
-description = "Gene set and gene-level analysis for single-cell RNA-seq using tree/neural models and SHAP values"
+description = "scGSHAPA: SHAP-based gene set and gene-level analysis for single-cell transcriptomics"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -23,7 +23,7 @@ dependencies = [
     "scikit-learn",
     "xgboost",
     "pandas",
-    "numpy",
+    "numpy<2",  # fasttreeshap (latest 0.1.6) calls np.obj2sctype, removed in NumPy 2.0
     "tqdm",
     "statsmodels",
     "fasttreeshap",
@@ -36,5 +36,8 @@ dependencies = [
 dev = ["pytest"]
 
 [project.urls]
-Homepage = "https://github.com/SKhademi/gshapa"
-Issues = "https://github.com/SKhademi/gshapa/issues"
+Homepage = "https://github.com/SKhademi/scGSHAPA"
+Issues = "https://github.com/SKhademi/scGSHAPA/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["scGSHAPA"]
