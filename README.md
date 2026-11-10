@@ -1,6 +1,6 @@
-# GSHAPA: Gene Set and Gene-Level Analysis for Single-Cell RNA-seq Using SHAP Values
+# scGSHAPA: Gene Set and Gene-Level Analysis for Single-Cell RNA-seq Using SHAP Values
 
-GSHAPA trains a tree-based or neural classifier (Random Forest, XGBoost, or a small neural
+scGSHAPA trains a tree-based or neural classifier (Random Forest, XGBoost, or a small neural
 network) to predict phenotype (e.g. Case vs. Control) from single-cell gene expression, then
 uses SHAP values from that model to score genes' contribution to the phenotype. Significance
 is assessed with a phenotype-label permutation test, at two levels:
@@ -20,7 +20,7 @@ dict required, and `explain_gene_sets` never needs to be called.
 ### Installation
 
 ```
-pip install gshapa
+pip install scGSHAPA
 ```
 
 (not yet published — see Status below)
@@ -28,10 +28,10 @@ pip install gshapa
 ### Quickstart
 
 ```python
-from gshapa import GSHAPA3
+from scGSHAPA import scGSHAPA3
 from sklearn.ensemble import RandomForestClassifier
 
-g = GSHAPA3(RandomForestClassifier(n_estimators=1000, n_jobs=-1), test_set_size=0.2, random_state=0)
+g = scGSHAPA3(RandomForestClassifier(n_estimators=1000, n_jobs=-1), test_set_size=0.2, random_state=0)
 g.fit(X, y)                                   # X: cells x genes, y: phenotype labels
 g.shap(g.X_test, y_explain=g.y_test)
 
@@ -46,18 +46,16 @@ g.plot_gene_sets_dot(gene_set_results)         # dot plot of top pathways
 g.plot_gene_sets_bar(gene_set_results)         # bar plot of significant pathways
 ```
 
-### Status
 
-This is a new, independently-maintained version of the GSHAPA method, developed alongside a
-paper currently under review. It builds on the original GSHAPA method (Peignier & Khademioureh)
-with several statistical corrections and additions: a signed Case-vs-Control SHAP contrast score,
-a self-contained phenotype-permutation null (replacing gene-resampling), FDR-BH multiple-testing
-correction, gene-level (not just gene-set-level) significance testing, and built-in plotting.
 
 ### Authors
 
 - Sara Khademioureh: khademio AT ualberta.ca
 - Sergio Peignier: sergio.peignier AT insa-lyon.fr
+- Michael Przystupa
+- Irina Dinu
+- Olga Tsoy
+
 
 ### Maintainer
 
