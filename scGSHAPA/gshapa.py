@@ -244,11 +244,11 @@ class scGSHAPA3(PlottingMixin):
             cell_scores = self._shap_values_interest[genes].mean(axis=1).values
             n_cells = cell_scores.shape[0]
             n_case = int(self._case_mask.sum())
-            res = np.empty(n_tests)
-            for i in range(n_tests):
-                perm = self.pseudo_random_generator.permutation(n_cells)
-                res[i] = cell_scores[perm[:n_case]].mean() - cell_scores[perm[n_case:]].mean()
-            return res
+            # Draw the permutations one by one (same random stream as before), then compute
+            # all n_tests contrasts in one vectorized step.
+            perms = np.stack([self.pseudo_random_generator.permutation(n_cells) for _ in range(n_tests)])
+            permuted = cell_scores[perms]
+            return permuted[:, :n_case].mean(axis=1) - permuted[:, n_case:].mean(axis=1)
 
         nb_genes = len(set_of_genes)
 
@@ -355,6 +355,8 @@ class scGSHAPA3(PlottingMixin):
                       n_tests=1000,
                       alpha=0.01,
                       multiple_test_method="fdr_bh",
+                      min_pct_expressed=0.05,
+                      genes=None,
                       ):
         """
         Per-gene analog of explain_gene_sets: computes a signed SHAP contrast score for every
@@ -367,25 +369,40 @@ class scGSHAPA3(PlottingMixin):
 
         Args:
             target_class (int or str): label for the class of interest
-            n_tests (int): number of permutations
+            n_tests (int): number of permutations. The smallest possible p-value is
+                1/(n_tests+1), so testing thousands of genes usually needs n_tests >= 10,000.
             alpha (float): significance threshold for multiple test correction
             multiple_test_method (str): correction method from statsmodels.stats.multitest.multipletests
+            min_pct_expressed (float or None): only test genes expressed in at least this
+                fraction of the fitted cells (train + test), like Seurat's min.pct. Very sparse
+                genes otherwise give false positives. A cell counts as expressing a gene when its
+                value is above the gene's minimum (works for counts, log-normalized and per-gene
+                scaled data). Pass None to test every gene.
+            genes (list or None): genes to test (default: all genes in X_explain).
+                Applied before min_pct_expressed.
 
         Returns:
-            pd.DataFrame: one row per gene, same schema as explain_gene_sets:
+            pd.DataFrame: one row per tested gene, same schema as explain_gene_sets:
                 - signed score   : mean(SHAP[Case]) - mean(SHAP[Control]) for that gene
                 - direction      : "toward_<class>" if signed > 0 else "away_from_<class>"
                 - p_pos corrected: FDR-corrected P(null >= signed_score) [enriched toward target class]
                 - p_neg corrected: FDR-corrected P(null <= signed_score) [enriched away from target class]
-
-        Note:
-            The null array is (n_tests, n_genes), so memory grows with both.
         """
         global_gene_enrichment_score = self.compute_target_global_gene_enrichment_score(target_class)
 
+        tested = list(self.X_explain.columns) if genes is None else \
+            [g for g in genes if g in set(self.X_explain.columns)]
+        if min_pct_expressed is not None:
+            X_fitted = pd.concat([self.X_train, self.X_test])[tested]
+            # A cell expresses a gene when its value is above the gene's minimum: 0 for counts or
+            # log-normalized data, and still the zeros' value after per-gene scaling.
+            pct_expressed = (X_fitted > X_fitted.min()).mean()
+            tested = list(pct_expressed.index[pct_expressed >= min_pct_expressed])
+        global_gene_enrichment_score = global_gene_enrichment_score[tested]
+
         self.pseudo_random_generator = np.random.default_rng(seed=self.random_state)
 
-        shap_matrix = self._shap_values_interest.values  # (n_cells, n_genes)
+        shap_matrix = self._shap_values_interest[tested].values  # (n_cells, n_genes)
         n_cells = shap_matrix.shape[0]
         n_case = int(self._case_mask.sum())
 
@@ -398,18 +415,36 @@ class scGSHAPA3(PlottingMixin):
                 f"explained cell count (e.g. test_set_size) or a smaller n_tests."
             )
 
-        # One shared set of permutations; each computes the contrast for all genes at once.
-        null = np.empty((n_tests, shap_matrix.shape[1]))
-        for i in range(n_tests):
-            perm = self.pseudo_random_generator.permutation(n_cells)
-            null[i] = shap_matrix[perm[:n_case]].mean(axis=0) - shap_matrix[perm[n_case:]].mean(axis=0)
-
+        # One shared set of permutations applied to all genes. Permutations are processed in
+        # batches: a 0/1 matrix marks each permutation's Case cells, so the per-gene Case sums
+        # for the whole batch are one matrix product. Exceedances are counted per batch, so
+        # memory does not grow with n_tests.
+        # Ties: when many cells share identical SHAP values (common with few Case cells), a
+        # permutation can reproduce the observed score exactly. Ties count as exceedances (as
+        # in the +1 correction), using a tolerance far above floating-point rounding so that
+        # an exact tie is never missed because of the order of summation.
         signed_scores = global_gene_enrichment_score
+        observed = signed_scores.values[None, :]
+        tie_tol = 1e-9 * np.abs(shap_matrix).max(axis=0)[None, :]
+        total = shap_matrix.sum(axis=0)
+        n_control = n_cells - n_case
+        n_ge = np.zeros(shap_matrix.shape[1])
+        n_le = np.zeros(shap_matrix.shape[1])
+        batch_size = 500
+        for start in range(0, n_tests, batch_size):
+            batch = min(batch_size, n_tests - start)
+            case_indicator = np.zeros((batch, n_cells))
+            for k in range(batch):
+                perm = self.pseudo_random_generator.permutation(n_cells)
+                case_indicator[k, perm[:n_case]] = 1.0
+            case_sum = case_indicator @ shap_matrix
+            null = case_sum / n_case - (total - case_sum) / n_control
+            n_ge += (null >= observed - tie_tol).sum(axis=0)
+            n_le += (null <= observed + tie_tol).sum(axis=0)
+
         # +1 correction, same as pval_gene_set_enrichment: p >= 1/(n_tests+1), never 0
-        p_pos = pd.Series((1 + (null >= signed_scores.values[None, :]).sum(axis=0)) / (n_tests + 1),
-                          index=signed_scores.index)
-        p_neg = pd.Series((1 + (null <= signed_scores.values[None, :]).sum(axis=0)) / (n_tests + 1),
-                          index=signed_scores.index)
+        p_pos = pd.Series((1 + n_ge) / (n_tests + 1), index=signed_scores.index)
+        p_neg = pd.Series((1 + n_le) / (n_tests + 1), index=signed_scores.index)
 
         _, p_pos_corr, _, _ = multipletests(p_pos.values, alpha=alpha, method=multiple_test_method)
         _, p_neg_corr, _, _ = multipletests(p_neg.values, alpha=alpha, method=multiple_test_method)
