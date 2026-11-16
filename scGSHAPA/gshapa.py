@@ -1,4 +1,5 @@
 import math
+import warnings
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 import pandas as pd
@@ -16,11 +17,15 @@ import torch
 
 RANDOM_STATE = 0
 TEST_SET_SIZE = 0.2
+# Trees deeper than ~40-50 levels make TreeSHAP numerically unstable (SHAP values no longer add up
+# to the prediction). Unpruned forests on thousands of cells easily grow 60-90 levels deep.
+MAX_DEPTH = 30
+SHAP_ADDITIVITY_TOL = 1e-6
 
 
-def _default_model(random_state):
+def _default_model(random_state, max_depth=MAX_DEPTH):
     return RandomForestClassifier(random_state=random_state, max_features=1./2,
-                                  ccp_alpha=0.01, n_estimators=1000, n_jobs=-1)
+                                  ccp_alpha=0.01, max_depth=max_depth, n_estimators=1000, n_jobs=-1)
 
 
 
@@ -35,7 +40,8 @@ class scGSHAPA3(PlottingMixin):
     def __init__(self,
                  model=None,
                  test_set_size=TEST_SET_SIZE,
-                 random_state = RANDOM_STATE
+                 random_state = RANDOM_STATE,
+                 max_depth=MAX_DEPTH
                 ):
         """
         Constructor for scGSHAPA object.
@@ -44,8 +50,10 @@ class scGSHAPA3(PlottingMixin):
             model (sklearn.base.BaseEstimator): Scikit-learn ML model used to learn to predict an phenotype (e.g., disease) from gene expression. Defaults to a fresh RandomForestClassifier per instance.
             test_set_size (float): Relative size for test set
             random_state (int): Random seed
+            max_depth (int or None): Maximum tree depth of the default random forest (ignored when `model` is given;
+                set max_depth on your own model instead). None = no limit, which can make SHAP values unreliable.
         """
-        self.model = model if model is not None else _default_model(random_state)
+        self.model = model if model is not None else _default_model(random_state, max_depth)
         self.test_set_size = test_set_size
         self.random_state = random_state
         self.pseudo_random_generator = np.random.default_rng(seed=random_state)
@@ -132,6 +140,20 @@ class scGSHAPA3(PlottingMixin):
             self.SHAP_values = self.explainer.shap_values(X_explain, check_additivity=check_addivity)
         else:
             self.SHAP_values = self.explainer(X_explain, check_additivity=check_addivity)
+            if isinstance(self.model, RandomForestClassifier):
+                self._warn_if_shap_not_additive(X_explain)
+
+    def _warn_if_shap_not_additive(self, X_explain):
+        """Warn when SHAP values + base value do not reproduce the forest's predicted probabilities."""
+        error = np.abs(self.SHAP_values.values.sum(axis=1) + np.asarray(self.SHAP_values.base_values)
+                       - self.model.predict_proba(X_explain)).max()
+        if error > SHAP_ADDITIVITY_TOL:
+            depth = max(tree.tree_.max_depth for tree in self.model.estimators_)
+            warnings.warn(
+                f"SHAP values do not add up to the model's predictions (max error {error:.3g}). "
+                f"The deepest tree has {depth} levels; TreeSHAP is numerically unstable for very deep trees, "
+                f"so scGSHAPA results may be wrong. Limit the tree depth, e.g. "
+                f"RandomForestClassifier(max_depth={MAX_DEPTH}).", RuntimeWarning)
 
 
     def compute_target_global_gene_enrichment_score(self, target_class):
