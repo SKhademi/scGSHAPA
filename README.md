@@ -19,11 +19,11 @@ dict required, and `explain_gene_sets` never needs to be called.
 
 ### Installation
 
-```
-pip install scGSHAPA
-```
+Install the latest version directly from GitHub (it is not on PyPI yet):
 
-(not yet published — see Status below)
+```
+pip install git+https://github.com/SKhademi/scGSHAPA.git
+```
 
 ### Quickstart
 
@@ -31,7 +31,8 @@ pip install scGSHAPA
 from scGSHAPA import scGSHAPA3
 from sklearn.ensemble import RandomForestClassifier
 
-g = scGSHAPA3(RandomForestClassifier(n_estimators=1000, n_jobs=-1), test_set_size=0.2, random_state=0)
+# max_depth=30: very deep trees (60+ levels, common with thousands of cells) make SHAP values unreliable
+g = scGSHAPA3(RandomForestClassifier(n_estimators=1000, max_depth=30, n_jobs=-1), test_set_size=0.2, random_state=0)
 g.fit(X, y)                                   # X: cells x genes, y: phenotype labels
 g.shap(g.X_test, y_explain=g.y_test)
 
@@ -47,6 +48,16 @@ g.plot_gene_sets_bar(gene_set_results)         # bar plot of significant pathway
 ```
 
 
+
+### How to cite
+
+If you use scGSHAPA in your research, please cite it. The paper describing the method is
+currently under review; until it is published, please cite the software (GitHub's
+"Cite this repository" button gives APA and BibTeX, from `CITATION.cff`):
+
+> Khademioureh S, Peignier S, Przystupa M, Dinu I, Tsoy O. scGSHAPA: explainable and calibrated
+> gene set analysis for single-cell transcriptomics (software, version 0.2.0).
+> https://github.com/SKhademi/scGSHAPA
 
 ### Authors
 

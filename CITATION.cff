@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use scGSHAPA in your research, please cite it as below."
+type: software
+title: "scGSHAPA: explainable and calibrated gene set analysis for single-cell transcriptomics"
+version: 0.2.0
+license: MIT
+repository-code: "https://github.com/SKhademi/scGSHAPA"
+authors:
+  - family-names: Khademioureh
+    given-names: Sara
+    email: khademio@ualberta.ca
+    affiliation: "University of Alberta; Vrije Universiteit Amsterdam"
+  - family-names: Peignier
+    given-names: Sergio
+    affiliation: "INSA Lyon, University of Lyon"
+  - family-names: Przystupa
+    given-names: Michael
+    affiliation: "University of Alberta"
+  - family-names: Dinu
+    given-names: Irina
+    affiliation: "University of Alberta"
+  - family-names: Tsoy
+    given-names: Olga
+    affiliation: "Vrije Universiteit Amsterdam"
+keywords:
+  - single-cell RNA-seq
+  - gene set analysis
+  - SHAP
+  - random forest
